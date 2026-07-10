@@ -53,20 +53,43 @@ Input
 
 ## Architecture Layers
 
-### Layer 1 — Rule Engine (Declarative)
+### Layer 1 — Rule Engine (Prolog / Declarative)
 
-Simple, deterministic rules. Hand-written or AI-synthesized. Evaluated locally with zero model invocation.
+Simple, deterministic facts and rules written in Prolog (SWI-Prolog recommended). Hand-written or AI-synthesized. Evaluated locally with zero model invocation.
 
+Prolog is a natural fit because:
+- **Facts are truths**: `boiling_point(water, 100, 1).` — substance, temp °C, atmospheres. Add truths, never overwrite.
+- **Rules compose facts**: derive conclusions from known truths automatically
+- **Backtracking is built in**: if one rule fails, the engine tries the next — routing logic for free
+- **Monotonic**: the knowledge base only grows; promoted rules are safe additions
+
+```prolog
+% Facts — physical truths
+boiling_point(water, 100, 1).
+boiling_point(ethanol, 78, 1).
+
+% Rules — derived conclusions
+boils(Substance) :-
+    boiling_point(Substance, BoilTemp, Atm),
+    current_pressure(Atm),
+    current_temp(Substance, T),
+    T >= BoilTemp.
+
+% Financial domain
+high_risk_country(ru). high_risk_country(kp). high_risk_country(ir).
+
+fraud_risk(Transaction) :-
+    transaction(Transaction, Amount, Country),
+    Amount > 10000,
+    high_risk_country(Country).
 ```
-boiling(X)    :- temperature(X, T), T > 100.
-fraud_risk(X) :- transaction(X, amount, A), A > 10000, country(X, C), high_risk_country(C).
-syntax_error  :- token(T), unexpected_context(T).
-```
+
+Rules read almost like natural language. The AI promotion pipeline outputs Prolog clauses directly.
 
 - Zero training cost
 - Fully auditable and explainable
 - O(1) or O(log n) evaluation
-- Can be replicated on every node in a cluster at near-zero cost
+- Stateless — can be replicated on every node in a cluster at near-zero cost
 
 ### Layer 2 — Confidence Gate (Router)
 
@@ -167,6 +190,15 @@ Ollama provides:
 - Streaming responses
 
 Neurogate wraps Ollama as the neural backend, adding the routing, rule engine, telemetry, and promotion pipeline on top.
+
+## SWI-Prolog Integration
+
+[SWI-Prolog](https://www.swi-prolog.org) is the recommended rule engine backend:
+- Mature, actively maintained, MIT-compatible license
+- Embeddable via C API or HTTP REST interface (`library(http/thread_httpd)`)
+- ARM support (runs on Pi4)
+- Can load/assert new clauses at runtime — rule promotion without restart
+- Built-in constraint solving, useful for numeric domains (temperatures, amounts, thresholds)
 
 ---
 
