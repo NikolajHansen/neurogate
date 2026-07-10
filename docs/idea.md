@@ -202,6 +202,42 @@ Neurogate wraps Ollama as the neural backend, adding the routing, rule engine, t
 
 ---
 
+## Architectural Philosophy: Two Approaches
+
+There are two fundamentally different ways to combine neural and symbolic reasoning. Neurogate consciously chooses one for now, with the other as the long-term target.
+
+### Approach A — Pre-routing (current implementation)
+
+Intercept the query *before* the LLM. If a rule matches with sufficient confidence, return the rule result directly. The LLM is never invoked.
+
+```
+Query → Confidence Gate → Rule Engine → Response Formatter
+                      ↘ (no rule) → LLM → Response
+```
+
+- ✅ Massive compute savings — LLM never runs for known inputs
+- ✅ Implementable today with existing tools
+- ✅ Fully auditable rule path
+- ❌ Requires a reliable confidence gate — two systems to keep aligned
+- ❌ Output format mismatch: rule result must be rendered into natural language
+
+### Approach B — Internal Hotspot Replacement (future target)
+
+Always enter the neural model, but identify layers and attention heads performing simple deterministic computation and replace them with rules *inside* the forward pass. The model output stays coherent because the replacement happens within the computation graph.
+
+- ✅ No routing mismatch — output format is naturally consistent
+- ✅ Architecturally more elegant — rules are part of the model, not alongside it
+- ❌ Requires **mechanistic interpretability** — understanding what specific circuits inside the transformer are computing. Active research area (Anthropic, DeepMind), not production-ready today
+- ❌ Modifying model internals is fragile at scale
+
+A related middle ground is **model editing** (ROME, MEMIT): rewrite specific facts directly into model weights without retraining. Promising but brittle when applied at scale.
+
+### Why Approach A now
+
+Approach A is practical and deployable today. Approach B is where the field is heading — as mechanistic interpretability matures, internal hotspot replacement will become viable. Neurogate is designed so the rule engine layer can eventually be replaced by an internal model component when the research catches up. The telemetry, clustering, and promotion pipeline remain valuable in both approaches.
+
+---
+
 ## Origins
 
 This architecture emerged from a discussion about:
